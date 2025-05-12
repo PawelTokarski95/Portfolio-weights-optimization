@@ -1,0 +1,128 @@
+import pandas as pd
+from newsapi import NewsApiClient
+import numpy as np
+from transformers import pipeline
+import datetime
+from pypfopt.efficient_frontier import EfficientFrontier
+from pypfopt import risk_models
+from pypfopt import expected_returns
+import matplotlib.pyplot as plt
+import osqp
+import cvxpy as cp
+
+sentiment_pipeline = pipeline("sentiment-analysis", model = "distilbert/distilbert-base-uncased-finetuned-sst-2-english")
+
+
+newsapi = NewsApiClient(api_key='2b####################0')
+
+tickers = ['Tesla', 'Microsoft', 'Amazon', 'General_electric', 'ExxonMobil', 'Google']
+month_ago = datetime.date.today() - datetime.timedelta(days = 30)
+today = datetime.date.today()
+
+
+articles = []
+for ticker in tickers:
+    articles.append(newsapi.get_everything(
+            q=ticker,
+            from_param=month_ago,
+            to=today,
+            language='en',
+            sort_by='relevancy',
+            page=1
+            ))
+
+
+positive = []
+negative = []
+avg_sentiment = []
+
+for j in articles:
+    for article in j['articles']:
+        content = article['content']
+        content_sentiment = sentiment_pipeline(content[:512])
+        if content_sentiment[0]['label'] == 'POSITIVE':
+            positive.append(content_sentiment[0]['score'])
+        elif content_sentiment[0]['label'] == 'NEGATIVE':
+            negative.append(-content_sentiment[0]['score'])
+    avg_sentiment.append(sum(negative + positive)/len(negative + positive))         
+
+    
+
+
+stock_dict = {}
+
+for j, i in enumerate(avg_sentiment):
+    stock_dict[tickers[j]] = i
+
+
+
+sentiment_scores = stock_dict
+stock_dict
+
+
+folder = 'C:/Users/..../Trading_ML/stocks/'
+stocks = ['TSLA_1d.csv', 'MSFT_1d.csv', 'AMZN_1d.csv', 'GE_1d.csv', 'XOM_1d.csv', 'GOOGL_1d.csv']
+df = []
+for x in stocks:
+    df.append(pd.read_csv(f'{folder}{x}', sep=';'))
+
+
+stock_list = []
+for stock in df:
+    stock = stock[stock['Close'] > 0]
+    stock['Close'] = stock['Close'].dropna(how='any')
+    stock = pd.DataFrame({"Date": stock['Data'], "Close": stock['Close']})
+    stock = stock.reset_index(drop=True)
+    stock_list.append(stock)
+    stock_list
+
+
+for i in range(len(stock_list)):
+    stock_list[i] = pd.DataFrame(stock_list[i]).reset_index(drop=True)
+
+stock_list    
+
+
+x = pd.DataFrame(stock_list[0])
+for i in range(len(stock_list)):
+    x = pd.concat([x, stock_list[i]["Close"]], axis=1)
+
+
+
+Close_all = pd.concat([x.iloc[:, 0]] + [x.iloc[:, i] for i in range(2, x.shape[1])], axis=1)
+
+
+Close_all.columns = ['Date'] + tickers
+
+df = Close_all.reset_index(drop=True).set_index('Date')
+
+
+
+r = expected_returns.mean_historical_return(df)
+std = risk_models.sample_cov(df)
+
+max_weights = {k: 0.05 + 0.25 * v for k, v in sentiment_scores.items()}
+min_weights = {k: 0.0 for k in sentiment_scores}
+
+
+ef = EfficientFrontier(r, std)
+ticker_to_index = {ticker: idx for idx, ticker in enumerate(ef.tickers)}
+
+
+for asset, ticker in enumerate(ef.tickers):
+    idx = ticker_to_index[ticker]
+    ef.add_constraint(lambda w, idx=idx: w[idx] <= max_weights[ticker])
+    ef.add_constraint(lambda w, idx=idx: w[idx] >= min_weights[ticker])
+
+
+
+ef = EfficientFrontier(r, std)
+ef._solver = "SCS"
+weights = ef.max_sharpe()# Rozwiąż problem optymalizacji (maksymalizacja Sharpe ratio)
+
+optimized_weights = ef.clean_weights()
+print(optimized_weights)
+list(optimized_weights)
+
+
+plt.pie(optimized_weights.values(), labels=optimized_weights.keys(), autopct='%1.1f%%')
