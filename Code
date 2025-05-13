@@ -118,7 +118,7 @@ for asset, ticker in enumerate(ef.tickers):
 
 ef = EfficientFrontier(r, std)
 ef._solver = "SCS"
-weights = ef.max_sharpe()# Rozwiąż problem optymalizacji (maksymalizacja Sharpe ratio)
+weights = ef.max_sharpe()
 
 optimized_weights = ef.clean_weights()
 print(optimized_weights)
