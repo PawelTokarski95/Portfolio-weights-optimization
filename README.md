@@ -1,4 +1,4 @@
-# Portfolio weights optimization
+# Portfolio weights optimization - sentiment analysis
 
 - **Language**: Python
 
