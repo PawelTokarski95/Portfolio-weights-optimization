@@ -109,7 +109,7 @@ ef = EfficientFrontier(r, std)
 ticker_to_index = {ticker: idx for idx, ticker in enumerate(ef.tickers)}
 
 
-for asset, ticker in enumerate(ef.tickers):
+for ticker in ef.tickers:
     idx = ticker_to_index[ticker]
     ef.add_constraint(lambda w, idx=idx: w[idx] <= max_weights[ticker])
     ef.add_constraint(lambda w, idx=idx: w[idx] >= min_weights[ticker])
